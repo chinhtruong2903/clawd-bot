@@ -1,0 +1,25 @@
+services:
+  openclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        OPENCLAW_VERSION: ${OPENCLAW_VERSION:-latest}
+    container_name: openclaw-local
+    environment:
+      TZ: ${TZ:-Asia/Saigon}
+      ROOT_PASSWORD: ${ROOT_PASSWORD:-root@123}
+      OPENCLAW_GATEWAY_BIND: lan
+      OPENCLAW_GATEWAY_PORT: 18789
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-local-dev-token-change-me}
+      OPENCLAW_ENABLE_RESPONSES_API: ${OPENCLAW_ENABLE_RESPONSES_API:-true}
+    ports:
+      - "18789:18789"
+      - "2222:22"
+    volumes:
+      - openclaw_home:/home/openclaw/.openclaw
+      - ./workspace:/workspace
+    restart: unless-stopped
+
+volumes:
+  openclaw_home:

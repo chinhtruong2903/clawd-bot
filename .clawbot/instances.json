@@ -1,0 +1,18 @@
+{
+  "activeId": "local",
+  "instances": [
+    {
+      "id": "local",
+      "name": "Local OpenClaw",
+      "containerName": "openclaw-local",
+      "gatewayPort": 18789,
+      "sshPort": 2222,
+      "token": "local-dev-token-change-me",
+      "image": "clawd-bot-openclaw",
+      "volumeName": "clawd-bot_openclaw_home",
+      "workspacePath": "D:\\Desktop\\clawd-bot\\workspace",
+      "createdAt": "2026-04-21T02:51:16.616Z",
+      "updatedAt": "2026-04-21T02:51:16.616Z"
+    }
+  ]
+}

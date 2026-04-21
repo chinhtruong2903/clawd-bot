@@ -20,7 +20,7 @@ export class InstancesController {
   @ApiOkResponse({ type: InstanceActionResponseDto })
   @Post()
   create(@Body() body: CreateInstanceDto) {
-    return this.instances.create(body);
+    return this.instances.createAndStart(body);
   }
 
   @ApiOperation({ summary: 'Set the active Clawbot instance used by default.' })

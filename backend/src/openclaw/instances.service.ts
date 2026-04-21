@@ -73,7 +73,10 @@ export class InstancesService {
     const now = new Date().toISOString();
     const name = input.name?.trim() || `clawbot-${state.instances.length + 1}`;
     const id = this.slug(name);
-    const containerName = input.containerName?.trim() || `openclaw-${id}`;
+    const requestedContainerName = input.containerName?.trim();
+    const containerName = requestedContainerName
+      ? this.normalizeContainerName(requestedContainerName)
+      : `openclaw-${id}`;
     if (state.instances.some((instance) => instance.id === id)) {
       return {
         ok: false,
@@ -83,7 +86,7 @@ export class InstancesService {
     if (!this.isManagedContainer(containerName) || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,127}$/.test(containerName)) {
       return {
         ok: false,
-        error: 'Container name must be a safe Docker name and start with "openclaw-".',
+        error: 'Container name must be a safe Docker name.',
       };
     }
     if (state.instances.some((instance) => instance.containerName === containerName)) {
@@ -116,6 +119,20 @@ export class InstancesService {
     return {
       ok: true,
       instance: this.publicInstance(instance),
+    };
+  }
+
+  async createAndStart(input: CreateInstanceInput) {
+    const created = await this.create(input);
+    if (!created.ok || !created.instance?.id) {
+      return created;
+    }
+
+    const started = await this.start(created.instance.id);
+    return {
+      ...created,
+      start: started,
+      ok: Boolean(started.ok),
     };
   }
 
@@ -212,6 +229,8 @@ export class InstancesService {
           stderr: `Skipped unmanaged volume "${instance.volumeName}".`,
         };
 
+    const containerOk = removeContainer.ok || removeContainer.stderr.includes('No such container');
+    const volumeOk = removeVolume.ok || removeVolume.stderr.includes('no such volume');
     const nextInstances = state.instances.filter((candidate) => candidate.id !== id);
     const nextActiveId = state.activeId === id ? nextInstances[0]?.id || '' : state.activeId;
     this.writeState({
@@ -220,7 +239,7 @@ export class InstancesService {
     });
 
     return {
-      ok: removeContainer.ok && removeVolume.ok,
+      ok: containerOk && volumeOk,
       removed: this.publicInstance(instance),
       container: removeContainer,
       volume: removeVolume,
@@ -305,6 +324,10 @@ export class InstancesService {
     if (result.ok) {
       return result;
     }
+    const pulled = await this.runDocker(['pull', this.imageName], 5 * 60_000);
+    if (pulled.ok) {
+      return pulled;
+    }
     return this.buildImage();
   }
 
@@ -365,6 +388,11 @@ export class InstancesService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 40) || `clawbot-${Date.now()}`;
+  }
+
+  private normalizeContainerName(value: string) {
+    const safeName = this.slug(value).replace(/-/g, '-');
+    return safeName.startsWith('openclaw-') ? safeName : `openclaw-${safeName}`;
   }
 
   private randomToken() {

@@ -111,7 +111,9 @@ type ClawbotInstance = {
   baseUrl: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3001";
+const DEFAULT_API_BASE = process.env.NODE_ENV === "production" ? "" : "http://127.0.0.1:3001";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE).replace(/\/$/, "");
+const SSH_HOST_LABEL = process.env.NEXT_PUBLIC_SSH_HOST_LABEL || "127.0.0.1";
 
 function normalizeTerminalChunk(chunk: string) {
   return chunk
@@ -1009,7 +1011,7 @@ export default function Home() {
                           </div>
                           <div>
                             <dt className="text-[#626056]">SSH</dt>
-                            <dd className="font-semibold">127.0.0.1:{instance.sshPort}</dd>
+                            <dd className="font-semibold">{SSH_HOST_LABEL}:{instance.sshPort}</dd>
                           </div>
                           <div>
                             <dt className="text-[#626056]">Token</dt>

@@ -73,6 +73,11 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
   container(@ConnectedSocket() socket: Socket, @MessageBody() data: { name?: string; shell?: string }) {
     this.stopShell(socket.id);
     const name = data?.name?.trim() || 'openclaw-local';
+    if (name !== 'openclaw-local' && !name.startsWith('openclaw-')) {
+      socket.emit('terminal:data', `Refusing to attach unmanaged container ${name}\r\n`);
+      this.startHostShell(socket);
+      return;
+    }
     const shell = data?.shell?.trim() || 'bash';
     this.startDockerShell(socket, name, shell);
   }

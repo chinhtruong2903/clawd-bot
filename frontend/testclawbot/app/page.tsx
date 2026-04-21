@@ -799,7 +799,6 @@ export default function Home() {
 
   useEffect(() => {
     const socket = io(`${API_BASE}/terminal`, {
-      transports: ["websocket"],
       reconnection: true,
     });
     socketRef.current = socket;

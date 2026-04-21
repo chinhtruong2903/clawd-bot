@@ -3,6 +3,7 @@ import { exec } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { InstancesService } from '../openclaw/instances.service';
 import type { TerminalRunRequestDto } from './dto';
 
 const execAsync = promisify(exec);
@@ -10,6 +11,8 @@ const execAsync = promisify(exec);
 @Injectable()
 export class TerminalService {
   private readonly rootDir = process.env.CLAWBOT_ROOT || resolve(process.cwd(), '..');
+
+  constructor(private readonly instances: InstancesService) {}
 
   async containers() {
     try {
@@ -23,11 +26,16 @@ export class TerminalService {
         },
       );
 
+      const managedNames = new Set(this.instances.list().instances.map((instance) => instance.containerName));
       const containers = stdout
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
         .map((line) => JSON.parse(line) as Record<string, string>)
+        .filter((item) => {
+          const name = item.Names ?? '';
+          return managedNames.has(name) || name.startsWith('openclaw-');
+        })
         .map((item) => ({
           id: item.ID ?? '',
           name: item.Names ?? '',

@@ -248,7 +248,11 @@ export class InstancesService {
   }
 
   async buildImage() {
-    return this.runDocker(['build', '-t', this.imageName, '.'], 10 * 60_000);
+    if (existsSync(resolve(this.rootDir, 'Dockerfile'))) {
+      return this.runDocker(['build', '-t', this.imageName, '.'], 10 * 60_000);
+    }
+
+    return this.runDocker(['pull', this.imageName], 5 * 60_000);
   }
 
   baseUrl(instance: ClawbotInstance) {

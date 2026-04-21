@@ -15,10 +15,15 @@ type TerminalSession = {
   shell: IPty;
 };
 
+const allowedOrigins = (process.env.PANEL_ALLOWED_ORIGINS ?? 'http://127.0.0.1:3000,http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 @WebSocketGateway({
   namespace: 'terminal',
   cors: {
-    origin: ['http://127.0.0.1:3000', 'http://localhost:3000'],
+    origin: allowedOrigins,
     credentials: true,
   },
 })

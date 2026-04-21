@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Clawbot Frontend
 
-## Getting Started
+Next.js frontend for managing Clawbot/OpenClaw instances through the NestJS backend.
 
-First, run the development server:
+## Local Env
+
+Copy the example:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Default local values:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:3001
+NEXT_PUBLIC_SSH_HOST_LABEL=127.0.0.1
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run Locally
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Vercel Env
 
-## Deploy on Vercel
+Set these Environment Variables in Vercel:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```env
+BACKEND_ORIGIN=http://210.2.86.143:8620
+NEXT_PUBLIC_API_BASE_URL=
+NEXT_PUBLIC_SSH_HOST_LABEL=210.2.86.143
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`BACKEND_ORIGIN` is used by Next.js rewrites on Vercel. The browser calls the Vercel HTTPS origin, and Vercel proxies `/api/*` and `/socket.io/*` to the HTTP backend.
+
+Leave `NEXT_PUBLIC_API_BASE_URL` empty in Vercel so the browser uses same-origin paths such as `/api/instances`.
+
+`NEXT_PUBLIC_SSH_HOST_LABEL` is only a display label for instance SSH port hints.
+
+## HTTP Backend Behind Vercel
+
+The backend can remain on HTTP because Vercel rewrites run server-side:
+
+- Browser -> `https://your-vercel-app.vercel.app/api/...`
+- Vercel -> `http://210.2.86.143:8620/api/...`
+
+Socket.IO traffic is also proxied through `/socket.io/*`.
+
+## Vercel Settings
+
+Use:
+
+```text
+Framework Preset: Next.js
+Root Directory: frontend/testclawbot
+Build Command: npm run build
+Install Command: npm install
+Output Directory: .next
+```
+
+After changing `NEXT_PUBLIC_*` variables in Vercel, redeploy the frontend because these values are baked into the client bundle at build time.

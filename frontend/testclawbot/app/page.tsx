@@ -114,6 +114,7 @@ type ClawbotInstance = {
 const DEFAULT_API_BASE = process.env.NODE_ENV === "production" ? "" : "http://127.0.0.1:3001";
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const SSH_HOST_LABEL = process.env.NEXT_PUBLIC_SSH_HOST_LABEL || "127.0.0.1";
+const TERMINAL_CLIENT_PASSWORD = "TNCC29032002";
 
 function normalizeTerminalChunk(chunk: string) {
   return chunk
@@ -308,6 +309,9 @@ export default function Home() {
     token: "",
   });
   const [terminalConnected, setTerminalConnected] = useState(false);
+  const [terminalUnlocked, setTerminalUnlocked] = useState(false);
+  const [terminalPassword, setTerminalPassword] = useState("");
+  const [terminalAuthError, setTerminalAuthError] = useState("");
   const [containers, setContainers] = useState<DockerContainer[]>([]);
   const [selectedContainer, setSelectedContainer] = useState("");
   const [containersError, setContainersError] = useState("");
@@ -367,6 +371,10 @@ export default function Home() {
   }
 
   async function refreshContainers() {
+    if (!terminalUnlocked) {
+      return;
+    }
+
     setIsLoadingContainers(true);
     try {
       const response = await fetch(`${API_BASE}/api/terminal/containers`, {
@@ -459,6 +467,10 @@ export default function Home() {
   }
 
   function sendTerminalSignal(signal: "ctrl-c" | "restart" | "clear") {
+    if (!terminalUnlocked) {
+      return;
+    }
+
     if (signal === "clear") {
       terminalRef.current?.reset();
       terminalRef.current?.focus();
@@ -482,6 +494,10 @@ export default function Home() {
   }
 
   function attachContainer() {
+    if (!terminalUnlocked) {
+      return;
+    }
+
     if (!socketRef.current?.connected) {
       return;
     }
@@ -498,6 +514,28 @@ export default function Home() {
       name: container,
       shell: "bash",
     });
+  }
+
+  function unlockTerminal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (terminalPassword === TERMINAL_CLIENT_PASSWORD) {
+      setTerminalUnlocked(true);
+      setTerminalPassword("");
+      setTerminalAuthError("");
+      window.sessionStorage.setItem("clawbot-terminal-unlocked", "true");
+      return;
+    }
+
+    setTerminalAuthError("Sai mật khẩu terminal.");
+  }
+
+  function lockTerminal() {
+    setTerminalUnlocked(false);
+    setTerminalConnected(false);
+    setContainers([]);
+    setSelectedContainer("");
+    window.sessionStorage.removeItem("clawbot-terminal-unlocked");
   }
 
   async function createInstance(event: FormEvent<HTMLFormElement>) {
@@ -674,6 +712,7 @@ export default function Home() {
   }
 
   useEffect(() => {
+    setTerminalUnlocked(window.sessionStorage.getItem("clawbot-terminal-unlocked") === "true");
     void refreshInstances();
     void refreshStatus();
     void refreshContainers();
@@ -707,6 +746,10 @@ export default function Home() {
   }, [selectedInstanceId]);
 
   useEffect(() => {
+    if (!terminalUnlocked) {
+      return undefined;
+    }
+
     const terminalHost = terminalHostRef.current;
     if (!terminalHost) {
       return undefined;
@@ -795,9 +838,14 @@ export default function Home() {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, []);
+  }, [terminalUnlocked]);
 
   useEffect(() => {
+    if (!terminalUnlocked) {
+      setTerminalConnected(false);
+      return undefined;
+    }
+
     const socket = io(`${API_BASE}/terminal`, {
       reconnection: true,
     });
@@ -833,7 +881,9 @@ export default function Home() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, []);
+    // The socket must be recreated only when the terminal lock state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalUnlocked]);
 
   useEffect(() => {
     listRef.current?.scrollTo({
@@ -1249,98 +1299,141 @@ export default function Home() {
             <section className="rounded-lg border border-[#d8d3c8] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold">Terminal</h2>
-                <span className={terminalConnected ? "text-xs font-semibold text-[#126534]" : "text-xs font-semibold text-[#a23625]"}>
-                  {terminalConnected ? "Connected shell" : "Disconnected"}
-                </span>
-              </div>
-
-              <div className="mt-4 rounded-lg border border-[#e2ded4] bg-[#fbfaf7] p-3">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <select
-                    value={selectedContainer}
-                    onChange={(event) => setSelectedContainer(event.target.value)}
-                    className="h-10 min-w-0 rounded-lg border border-[#cfc8ba] bg-white px-3 text-sm outline-none transition focus:border-[#175c4c] focus:ring-2 focus:ring-[#175c4c]/20"
-                  >
-                    {containers.length ? (
-                      containers.map((container) => (
-                        <option key={container.id || container.name} value={container.name}>
-                          {container.name} - {container.state}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">No containers</option>
-                    )}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => void refreshContainers()}
-                    disabled={isLoadingContainers}
-                    className="h-10 rounded-lg border border-[#cfc8ba] bg-white px-3 text-sm font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
-                  >
-                    {isLoadingContainers ? "Loading" : "Refresh"}
-                  </button>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <p className={containersError ? "font-semibold text-[#a23625]" : "text-[#626056]"}>
-                    {containersError || `${containers.length} container${containers.length === 1 ? "" : "s"} found`}
-                  </p>
-                  <p className="max-w-full truncate text-[#626056]" title={`GET ${API_BASE}/api/terminal/containers`}>
-                    GET {API_BASE}/api/terminal/containers
-                  </p>
-                </div>
-                {selectedContainerInfo ? (
-                  <p className="mt-2 truncate text-xs text-[#626056]" title={`${selectedContainerInfo.name} - ${selectedContainerInfo.status} - ${selectedContainerInfo.image}`}>
-                    Selected: <span className="font-semibold">{selectedContainerInfo.name}</span>
-                    <span> - {selectedContainerInfo.status} - {selectedContainerInfo.image}</span>
-                  </p>
-                ) : null}
-              </div>
-
-              <div
-                className="mt-4 h-80 min-w-0 overflow-hidden rounded-lg bg-[#10120f] p-2 text-white"
-                onClick={() => terminalRef.current?.focus()}
-              >
-                <div ref={terminalHostRef} className="h-full min-w-0 [&_.xterm]:h-full" />
-              </div>
-
-              <div className="mt-3 flex flex-col gap-2">
-                <p className="text-xs text-[#626056]">
-                  Click vào vùng terminal rồi gõ trực tiếp như terminal bình thường.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => sendTerminalSignal("ctrl-c")}
-                    disabled={!terminalConnected}
-                    className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
-                  >
-                    Ctrl+C
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => sendTerminalSignal("restart")}
-                    disabled={!terminalConnected}
-                    className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
-                  >
-                    Restart shell
-                  </button>
-                  <button
-                    type="button"
-                    onClick={attachContainer}
-                    disabled={!terminalConnected || !selectedContainer}
-                    className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
-                  >
-                    Attach container
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => sendTerminalSignal("clear")}
-                    className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4]"
-                  >
-                    Clear
-                  </button>
+                <div className="flex items-center gap-3">
+                  <span className={terminalConnected ? "text-xs font-semibold text-[#126534]" : "text-xs font-semibold text-[#a23625]"}>
+                    {terminalUnlocked ? (terminalConnected ? "Connected shell" : "Disconnected") : "Locked"}
+                  </span>
+                  {terminalUnlocked ? (
+                    <button
+                      type="button"
+                      onClick={lockTerminal}
+                      className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4]"
+                    >
+                      Lock
+                    </button>
+                  ) : null}
                 </div>
               </div>
+
+              {!terminalUnlocked ? (
+                <form onSubmit={unlockTerminal} className="mt-4 rounded-lg border border-[#e2ded4] bg-[#fbfaf7] p-4">
+                  <label className="text-sm font-semibold text-[#1d1d1b]" htmlFor="terminal-password">
+                    Terminal password
+                  </label>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <input
+                      id="terminal-password"
+                      type="password"
+                      value={terminalPassword}
+                      onChange={(event) => {
+                        setTerminalPassword(event.target.value);
+                        setTerminalAuthError("");
+                      }}
+                      className="h-10 min-w-0 rounded-lg border border-[#cfc8ba] bg-white px-3 text-sm outline-none transition focus:border-[#175c4c] focus:ring-2 focus:ring-[#175c4c]/20"
+                      placeholder="Nhập mật khẩu để mở terminal"
+                    />
+                    <button
+                      type="submit"
+                      className="h-10 rounded-lg bg-[#175c4c] px-4 text-sm font-semibold text-white transition hover:bg-[#10483b]"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                  <p className={terminalAuthError ? "mt-2 text-xs font-semibold text-[#a23625]" : "mt-2 text-xs text-[#626056]"}>
+                    {terminalAuthError || "Terminal sẽ không kết nối socket cho tới khi mở khóa."}
+                  </p>
+                </form>
+              ) : (
+                <>
+                  <div className="mt-4 rounded-lg border border-[#e2ded4] bg-[#fbfaf7] p-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <select
+                        value={selectedContainer}
+                        onChange={(event) => setSelectedContainer(event.target.value)}
+                        className="h-10 min-w-0 rounded-lg border border-[#cfc8ba] bg-white px-3 text-sm outline-none transition focus:border-[#175c4c] focus:ring-2 focus:ring-[#175c4c]/20"
+                      >
+                        {containers.length ? (
+                          containers.map((container) => (
+                            <option key={container.id || container.name} value={container.name}>
+                              {container.name} - {container.state}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No containers</option>
+                        )}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void refreshContainers()}
+                        disabled={isLoadingContainers}
+                        className="h-10 rounded-lg border border-[#cfc8ba] bg-white px-3 text-sm font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
+                      >
+                        {isLoadingContainers ? "Loading" : "Refresh"}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <p className={containersError ? "font-semibold text-[#a23625]" : "text-[#626056]"}>
+                        {containersError || `${containers.length} container${containers.length === 1 ? "" : "s"} found`}
+                      </p>
+                      <p className="max-w-full truncate text-[#626056]" title={`GET ${API_BASE}/api/terminal/containers`}>
+                        GET {API_BASE}/api/terminal/containers
+                      </p>
+                    </div>
+                    {selectedContainerInfo ? (
+                      <p className="mt-2 truncate text-xs text-[#626056]" title={`${selectedContainerInfo.name} - ${selectedContainerInfo.status} - ${selectedContainerInfo.image}`}>
+                        Selected: <span className="font-semibold">{selectedContainerInfo.name}</span>
+                        <span> - {selectedContainerInfo.status} - {selectedContainerInfo.image}</span>
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div
+                    className="mt-4 h-80 min-w-0 overflow-hidden rounded-lg bg-[#10120f] p-2 text-white"
+                    onClick={() => terminalRef.current?.focus()}
+                  >
+                    <div ref={terminalHostRef} className="h-full min-w-0 [&_.xterm]:h-full" />
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    <p className="text-xs text-[#626056]">
+                      Click vào vùng terminal rồi gõ trực tiếp như terminal bình thường.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => sendTerminalSignal("ctrl-c")}
+                        disabled={!terminalConnected}
+                        className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
+                      >
+                        Ctrl+C
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => sendTerminalSignal("restart")}
+                        disabled={!terminalConnected}
+                        className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
+                      >
+                        Restart shell
+                      </button>
+                      <button
+                        type="button"
+                        onClick={attachContainer}
+                        disabled={!terminalConnected || !selectedContainer}
+                        className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4] disabled:cursor-not-allowed disabled:text-[#9c978e]"
+                      >
+                        Attach container
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => sendTerminalSignal("clear")}
+                        className="rounded-lg border border-[#d8d3c8] bg-[#fbfaf7] px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f0ece4]"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </section>
 
             <section className="rounded-lg border border-[#d8d3c8] bg-[#25251f] p-4 text-white shadow-sm">

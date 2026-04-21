@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_PASSWORD="${ROOT_PASSWORD:-root@123}"
+OPENCLAW_GATEWAY_MODE="${OPENCLAW_GATEWAY_MODE:-lan}"
 OPENCLAW_GATEWAY_BIND="${OPENCLAW_GATEWAY_BIND:-lan}"
 OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
 OPENCLAW_ENABLE_RESPONSES_API="${OPENCLAW_ENABLE_RESPONSES_API:-true}"
@@ -27,7 +28,7 @@ if [[ "${1:-}" != "openclaw-gateway" ]]; then
 fi
 
 config_json='[
-  {"path":"gateway.mode","value":"local"},
+  {"path":"gateway.mode","value":"'"${OPENCLAW_GATEWAY_MODE}"'"},
   {"path":"gateway.bind","value":"'"${OPENCLAW_GATEWAY_BIND}"'"},
   {"path":"gateway.http.endpoints.responses.enabled","value":'"${responses_api_enabled}"'}
 ]'

@@ -41,6 +41,7 @@ export class InstancesService {
   private readonly rootEnv = this.loadRootEnv();
   private readonly filePath = resolve(this.rootDir, '.clawbot', 'instances.json');
   private readonly imageName = process.env.OPENCLAW_IMAGE || 'clawd-bot-openclaw';
+  private readonly gatewayHost = process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1';
 
   list() {
     const state = this.readState();
@@ -175,6 +176,8 @@ export class InstancesService {
       '-e',
       `ROOT_PASSWORD=${this.rootEnv.ROOT_PASSWORD || 'root@123'}`,
       '-e',
+      'OPENCLAW_GATEWAY_MODE=lan',
+      '-e',
       'OPENCLAW_GATEWAY_BIND=lan',
       '-e',
       'OPENCLAW_GATEWAY_PORT=18789',
@@ -256,7 +259,7 @@ export class InstancesService {
   }
 
   baseUrl(instance: ClawbotInstance) {
-    return `http://127.0.0.1:${instance.gatewayPort}`;
+    return `http://${this.gatewayHost}:${instance.gatewayPort}`;
   }
 
   redact(command: string, instance: ClawbotInstance) {

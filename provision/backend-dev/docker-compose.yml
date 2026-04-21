@@ -11,6 +11,9 @@ services:
       PORT: ${CONTAINER_PORT:-5000}
       CLAWBOT_ROOT: ${HOST_RUNTIME_DIR}
       OPENCLAW_IMAGE: ${OPENCLAW_IMAGE}
+      OPENCLAW_GATEWAY_HOST: ${OPENCLAW_GATEWAY_HOST:-host.docker.internal}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${HOST_PORT:-8600}:${CONTAINER_PORT:-5000}"
     volumes:

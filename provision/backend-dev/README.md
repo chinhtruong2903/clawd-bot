@@ -101,7 +101,10 @@ HOST_PORT=8600
 CONTAINER_PORT=5000
 HOST_RUNTIME_DIR=/home/qkit/data/clawd-bot-backend-dev/runtime
 OPENCLAW_IMAGE=<dockerhub-user>/clawd-bot-openclaw:dev
+OPENCLAW_GATEWAY_HOST=host.docker.internal
 ```
+
+`OPENCLAW_GATEWAY_HOST=host.docker.internal` is important for Docker deploys: the backend container talks to OpenClaw gateways through ports published on the Docker host. The compose file maps this name to the Linux Docker host with `host-gateway`.
 
 If the backend image is private, add:
 

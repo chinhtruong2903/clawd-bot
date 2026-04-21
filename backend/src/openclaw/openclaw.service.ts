@@ -117,7 +117,7 @@ export class OpenclawService {
       'docker',
       [
         'exec',
-        'openclaw-local',
+        instance.containerName,
         'openclaw',
         'gateway',
         'usage-cost',

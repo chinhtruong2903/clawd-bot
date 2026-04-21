@@ -82,6 +82,21 @@ export class OpenclawService {
       180_000,
     );
 
+    const responseFailed = this.isFailedResponse(result.data);
+    if (!result.ok || responseFailed) {
+      const recentLogs = await this.runDocker(['logs', '--tail=80', instance.containerName], 30_000);
+      return {
+        ...result,
+        ok: false,
+        outputText: this.extractErrorText(result) || 'OpenClaw response failed.',
+        gatewayLogs: {
+          ok: recentLogs.ok,
+          stdout: recentLogs.stdout,
+          stderr: recentLogs.stderr,
+        },
+      };
+    }
+
     return {
       ...result,
       outputText: this.extractOutputText(result.data),
@@ -259,6 +274,45 @@ export class OpenclawService {
   private authHeaders(instance: ClawbotInstance): Record<string, string> {
     return instance.token ? { Authorization: `Bearer ${instance.token}` } : {};
   }
+
+  private extractErrorText(result: JsonResult) {
+    if (result.error) {
+      return result.error;
+    }
+
+    if (result.raw) {
+      return result.raw;
+    }
+
+    const data = result.data;
+    if (!data || typeof data !== 'object') {
+      return '';
+    }
+
+    const record = data as Record<string, unknown>;
+    if (typeof record.error === 'string') {
+      return record.error;
+    }
+
+    if (record.error && typeof record.error === 'object') {
+      const errorRecord = record.error as Record<string, unknown>;
+      if (typeof errorRecord.message === 'string') {
+        return errorRecord.message;
+      }
+      return JSON.stringify(errorRecord);
+    }
+
+    return '';
+  }
+
+  private isFailedResponse(data: unknown) {
+    if (!data || typeof data !== 'object') {
+      return false;
+    }
+
+    return (data as Record<string, unknown>).status === 'failed';
+  }
+
   private extractOutputText(data: unknown): string {
     if (!data || typeof data !== 'object') {
       return '';

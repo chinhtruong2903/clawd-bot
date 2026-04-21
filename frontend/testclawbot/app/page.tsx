@@ -127,6 +127,14 @@ function normalizeTerminalChunk(chunk: string) {
     .replace(/\x1b\[\?1004[hl]/g, "");
 }
 
+function normalizeTerminalInput(input: string) {
+  return input
+    .replace(/\x1b\[200~/g, "")
+    .replace(/\x1b\[201~/g, "")
+    .replace(/\r\n/g, "\r")
+    .replace(/\n/g, "\r");
+}
+
 function getSpecialTerminalInput(event: KeyboardEvent) {
   if (event.altKey || event.metaKey) {
     return null;
@@ -686,14 +694,24 @@ export default function Home() {
         data?.data?.output_text ||
         data?.error ||
         data?.data?.error?.message ||
+        data?.data?.error ||
+        data?.raw ||
         "No response text returned.";
+      const debugDetails = !response.ok
+        ? [
+            `HTTP ${response.status}`,
+            data?.status ? `OpenClaw status: ${data.status}` : "",
+            data?.gatewayLogs?.stderr ? `Gateway stderr:\n${data.gatewayLogs.stderr}` : "",
+            data?.gatewayLogs?.stdout ? `Gateway logs:\n${data.gatewayLogs.stdout}` : "",
+          ].filter(Boolean).join("\n\n")
+        : "";
 
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: output,
+          content: debugDetails ? `${output}\n\n${debugDetails}` : output,
         },
       ]);
     } catch (error) {
@@ -787,7 +805,7 @@ export default function Home() {
     };
 
     const dataListener = terminal.onData((data) => {
-      socketRef.current?.emit("terminal:input", data);
+      socketRef.current?.emit("terminal:input", normalizeTerminalInput(data));
     });
     const pasteListener = (event: ClipboardEvent) => {
       const text = event.clipboardData?.getData("text/plain");
@@ -796,7 +814,7 @@ export default function Home() {
       }
 
       event.preventDefault();
-      socketRef.current?.emit("terminal:input", text.replace(/\r\n/g, "\r").replace(/\n/g, "\r"));
+      socketRef.current?.emit("terminal:input", normalizeTerminalInput(text));
     };
     terminalHost.addEventListener("paste", pasteListener);
     terminal.attachCustomKeyEventHandler((event) => {
